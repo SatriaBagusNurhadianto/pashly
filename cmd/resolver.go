@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/cerberauth/pashly/internal/hash"
 	"github.com/cerberauth/pashly/internal/target"
+	"github.com/cerberauth/x/telemetryx"
+	"github.com/getargvio/argvio-go"
 )
 
 // resolvedHash carries everything verify/info need regardless of whether
@@ -108,4 +111,46 @@ func sniffTarget(encoded string) target.Adapter {
 		}
 	}
 	return nil
+}
+
+// Hash metrics, declared in the Argvio catalog. Algorithms and targets come
+// from pashly's own registries, never from the hash or password.
+var (
+	hashDuration      = argvio.NewDuration("hash.run", argvio.Dims("algorithm", "target"))
+	resolvedCounter   = argvio.NewCounter("hash.resolved", argvio.Dims("algorithm", "target", "detection"))
+	verifyResultCount = argvio.NewCounter("verify.result", argvio.Dims("algorithm", "result"))
+)
+
+func algorithmLabel(id string) string { return telemetryx.Vocab(id, hash.IDs()...) }
+
+// targetLabel is the --target platform name, or "none".
+func targetLabel(name string) string {
+	if name == "" {
+		return "none"
+	}
+	return telemetryx.Vocab(name, target.Names()...)
+}
+
+// recordResolved counts a hash info or verify worked out: its algorithm, the
+// platform format it was in ("none" for pashly's own) and whether the user
+// forced it or it was detected.
+func recordResolved(ctx context.Context, r resolvedHash, override string) {
+	detection := "detected"
+	if override != "" {
+		detection = "forced"
+	}
+	platform := ""
+	if name, ok := strings.CutPrefix(r.label, "target:"); ok {
+		platform = name
+	}
+	resolvedCounter.Add(ctx, 1, algorithmLabel(r.algo.ID()), targetLabel(platform), detection)
+}
+
+// recordVerify counts a verify outcome: "match" or "no-match".
+func recordVerify(ctx context.Context, r resolvedHash, matched bool) {
+	result := "no-match"
+	if matched {
+		result = "match"
+	}
+	verifyResultCount.Add(ctx, 1, algorithmLabel(r.algo.ID()), result)
 }

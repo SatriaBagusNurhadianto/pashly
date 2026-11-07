@@ -10,9 +10,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// argvioAPIKey is pashly's public_ingest-scoped Argvio API key, selecting the
+// "pashly" tenant its usage analytics land in. It is not committed: the release
+// build injects it with -ldflags -X from the ARGVIO_API_KEY secret, and a build
+// without one reports nothing.
+var argvioAPIKey string
+
 var (
-	sqaOptOut    bool
-	otelShutdown func(context.Context) error
+	sqaOptOut bool
 )
 
 var name = "pashly"
@@ -28,17 +33,6 @@ verifies passwords against hashes — built to support IAM/CIAM migration work
 Duende IdentityServer).`,
 		SilenceErrors: true,
 		SilenceUsage:  true,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			if !sqaOptOut {
-				otelShutdown, _ = telemetryx.New(cmd.Context(), name, projectVersion, telemetryx.WithCommit(commit), telemetryx.WithBuildDate(date))
-			}
-		},
-		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			if otelShutdown != nil {
-				_ = otelShutdown(cmd.Context())
-				otelShutdown = nil
-			}
-		},
 	}
 
 	rootCmd.AddCommand(generateCmd)
@@ -56,18 +50,11 @@ Duende IdentityServer).`,
 // once to the RootCmd.
 func Execute(projectVersion, commit, date string) {
 	c := NewRootCmd(projectVersion, commit, date)
-	defer func() {
-		if otelShutdown != nil {
-			_ = otelShutdown(context.Background())
-			otelShutdown = nil
-		}
-	}()
+	argvioShutdown := telemetryx.Instrument(c, projectVersion, argvioAPIKey)
+	defer func() { _ = argvioShutdown(context.Background()) }()
 
-	if err := c.Execute(); err != nil {
-		if otelShutdown != nil {
-			_ = otelShutdown(context.Background())
-			otelShutdown = nil
-		}
+	if err := telemetryx.Execute(c); err != nil {
+		_ = argvioShutdown(context.Background())
 
 		code := 2
 		var exitErr *exitCodeError

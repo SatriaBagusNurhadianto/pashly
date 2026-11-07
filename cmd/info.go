@@ -22,6 +22,7 @@ var infoCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		recordResolved(cmd.Context(), resolved, infoAlgorithm)
 		return printInfo(resolved.label, resolved.algo.ID(), resolved.result, infoFormat)
 	},
 }
