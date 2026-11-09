@@ -69,3 +69,26 @@ func TestScryptEncodeDecodeVerifyRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, ok)
 }
+
+func TestScryptDecodeRejectsUnsafeParams(t *testing.T) {
+	algo, err := Get("scrypt")
+	require.NoError(t, err)
+
+	cases := map[string]string{
+		"ln zero":        "$scrypt$ln=0,r=8,p=1$c2FsdHNhbHQ$aGFzaGhhc2g",
+		"ln overflow":    "$scrypt$ln=63,r=8,p=1$c2FsdHNhbHQ$aGFzaGhhc2g",
+		"ln huge":        "$scrypt$ln=99999999999999999999,r=8,p=1$c2FsdHNhbHQ$aGFzaGhhc2g",
+		"memory too big": "$scrypt$ln=40,r=8,p=1$c2FsdHNhbHQ$aGFzaGhhc2g",
+		"r zero":         "$scrypt$ln=4,r=0,p=1$c2FsdHNhbHQ$aGFzaGhhc2g",
+		"p zero":         "$scrypt$ln=4,r=8,p=0$c2FsdHNhbHQ$aGFzaGhhc2g",
+		"r*p too large":  "$scrypt$ln=1,r=1,p=1073741824$c2FsdHNhbHQ$aGFzaGhhc2g",
+	}
+	for name, encoded := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := algo.Decode(encoded)
+			assert.Error(t, err)
+			_, err = algo.Verify([]byte("x"), encoded)
+			assert.Error(t, err)
+		})
+	}
+}

@@ -91,6 +91,9 @@ func (a aspnetIdentityAdapter) Decode(encoded string) (hash.Result, error) {
 		return hash.Result{}, fmt.Errorf("unsupported ASP.NET Identity PRF %d (only HMACSHA512/2 is supported)", prf)
 	}
 	iterations := binary.BigEndian.Uint32(buf[5:9])
+	if iterations < 1 || iterations > hash.MaxPBKDF2Iterations {
+		return hash.Result{}, fmt.Errorf("pbkdf2 iterations must be between 1 and %d, got %d", hash.MaxPBKDF2Iterations, iterations)
+	}
 	saltLen := binary.BigEndian.Uint32(buf[9:13])
 	if uint32(len(buf)) < 13+saltLen { // #nosec G115 -- len() is always non-negative
 		return hash.Result{}, fmt.Errorf("aspnet-identity hash truncated (salt)")
@@ -99,7 +102,7 @@ func (a aspnetIdentityAdapter) Decode(encoded string) (hash.Result, error) {
 	key := buf[13+saltLen:]
 	return hash.Result{
 		Algorithm: a.AlgorithmID(),
-		Params:    hash.Params{Iterations: int(iterations), SaltLength: len(salt), KeyLength: len(key)}, // #nosec G115 -- iterations from a real ASP.NET Identity hash fits well within int32/int64; only a hostile 32-bit-int build could truncate
+		Params:    hash.Params{Iterations: int(iterations), SaltLength: len(salt), KeyLength: len(key)}, // #nosec G115 -- bounded by MaxPBKDF2Iterations above
 		Salt:      salt,
 		Key:       key,
 	}, nil

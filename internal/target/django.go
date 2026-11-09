@@ -79,6 +79,9 @@ func (d djangoAdapter) Decode(encoded string) (hash.Result, error) {
 	if err != nil {
 		return hash.Result{}, fmt.Errorf("parsing django iterations: %w", err)
 	}
+	if err := hash.ValidatePBKDF2Iterations(iterations); err != nil {
+		return hash.Result{}, err
+	}
 	salt := parts[2]
 	key, err := base64.StdEncoding.DecodeString(parts[3])
 	if err != nil {

@@ -95,6 +95,9 @@ func (k keycloakAdapter) Decode(encoded string) (hash.Result, error) {
 	if credData.Algorithm != "pbkdf2-sha256" {
 		return hash.Result{}, fmt.Errorf("unsupported keycloak algorithm %q (only pbkdf2-sha256 is supported)", credData.Algorithm)
 	}
+	if err := hash.ValidatePBKDF2Iterations(credData.HashIterations); err != nil {
+		return hash.Result{}, err
+	}
 	var secretData keycloakSecretData
 	if err := json.Unmarshal([]byte(cred.SecretData), &secretData); err != nil {
 		return hash.Result{}, fmt.Errorf("parsing keycloak secretData JSON: %w", err)
