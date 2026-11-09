@@ -228,3 +228,13 @@ func TestVerifyMalformedArgon2ExitsWithError(t *testing.T) {
 		assert.NotContains(t, stderr, "panic")
 	}
 }
+
+func TestVerifyDetectsOktaBcryptPayload(t *testing.T) {
+	payload := `{"algorithm":"BCRYPT","workFactor":5,"salt":"CCCCCCCCCCCCCCCCCCCCC.","value":"E5YPO9kmyuRGyh0XouQYb4YMJKvyOeW"}`
+
+	_, stderr, code := run(t, "verify", "--hash", payload, "--password", "U*U")
+	assert.Equal(t, 0, code, stderr)
+
+	_, _, code = run(t, "verify", "--hash", payload, "--password", "wrong")
+	assert.Equal(t, 1, code)
+}

@@ -3,6 +3,7 @@ package target
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/cerberauth/pashly/internal/hash"
 )
@@ -33,11 +34,16 @@ func (o oktaAdapter) Hash(password []byte, params hash.Params) (hash.Result, err
 	return algo.Hash(password, params)
 }
 
+// oktaAlgorithmBcrypt is the credentials.password.hash.algorithm value for
+// bcrypt imports. saltOrder only applies to Okta's SHA-* and MD5 imports, so
+// it is neither emitted nor checked here.
+const oktaAlgorithmBcrypt = "BCRYPT"
+
 type oktaImportHashedPassword struct {
-	Value      string `json:"value"`
-	Salt       string `json:"salt"`
-	SaltOrder  string `json:"saltOrder"`
+	Algorithm  string `json:"algorithm"`
 	WorkFactor int    `json:"workFactor"`
+	Salt       string `json:"salt"`
+	Value      string `json:"value"`
 }
 
 func (o oktaAdapter) Encode(r hash.Result) (string, error) {
@@ -49,10 +55,10 @@ func (o oktaAdapter) Encode(r hash.Result) (string, error) {
 		return "", fmt.Errorf("unable to split bcrypt hash for okta encoding")
 	}
 	out := oktaImportHashedPassword{
-		Value:      hashPart,
-		Salt:       salt,
-		SaltOrder:  "PREFIX",
+		Algorithm:  oktaAlgorithmBcrypt,
 		WorkFactor: cost,
+		Salt:       salt,
+		Value:      hashPart,
 	}
 	b, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
@@ -66,8 +72,8 @@ func (o oktaAdapter) Decode(encoded string) (hash.Result, error) {
 	if err := json.Unmarshal([]byte(encoded), &in); err != nil {
 		return hash.Result{}, fmt.Errorf("parsing okta ImportHashedPassword JSON: %w", err)
 	}
-	if in.SaltOrder != "PREFIX" {
-		return hash.Result{}, fmt.Errorf("unsupported okta saltOrder %q (only PREFIX is supported)", in.SaltOrder)
+	if !strings.EqualFold(in.Algorithm, oktaAlgorithmBcrypt) {
+		return hash.Result{}, fmt.Errorf("unsupported okta algorithm %q (only BCRYPT is supported)", in.Algorithm)
 	}
 	full := hash.BcryptJoinSaltHash(in.Salt, in.Value, in.WorkFactor)
 	algo, err := hash.Get("bcrypt")
