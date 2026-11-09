@@ -38,12 +38,14 @@ makes verify suitable for direct use in CI scripts.`,
 		if err != nil {
 			return exitError(2, err)
 		}
+		recordResolved(cmd.Context(), resolved, verifyAlgorithm)
 
 		ok, err := resolved.verify(password)
 		if err != nil {
 			return exitError(2, fmt.Errorf("verification error: %w", err))
 		}
 
+		recordVerify(cmd.Context(), resolved, ok)
 		if !ok {
 			fmt.Println("no match")
 			return exitError(1, nil)

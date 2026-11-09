@@ -1,13 +1,44 @@
 package cmd
 
 import (
+	"context"
 	"encoding/csv"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/cerberauth/pashly/internal/genpass"
+	"github.com/cerberauth/x/telemetryx"
+	"github.com/getargvio/argvio-go"
 	"github.com/spf13/cobra"
 )
+
+// Generate metrics, declared in the Argvio catalog. Only the charset preset and the output
+// format, both fixed lists, and the requested sizes are sent, never a password.
+var (
+	generateRuns    = argvio.NewCounter("generate.run", argvio.Dims("charset", "format", "ambiguous"))
+	generateLengths = argvio.NewValue("generate.length", argvio.WithUnit(argvio.UnitCount))
+	generateCounts  = argvio.NewValue("generate.count", argvio.WithUnit(argvio.UnitCount))
+)
+
+// charsetLabel is the --charset preset: "custom:..." is reduced to "custom" so
+// the characters a user picked never leave the machine.
+func charsetLabel(charset string) string {
+	if strings.HasPrefix(charset, "custom:") {
+		return "custom"
+	}
+	return telemetryx.Vocab(charset, "alnum", "alnum-symbols")
+}
+
+func recordGenerate(ctx context.Context) {
+	ambiguous := "included"
+	if generateNoAmbiguous {
+		ambiguous = "excluded"
+	}
+	generateRuns.Add(ctx, 1, charsetLabel(generateCharset), telemetryx.Vocab(generateFormat, "plain", formatJSON, "csv"), ambiguous)
+	generateLengths.Record(ctx, float64(generateLength))
+	generateCounts.Record(ctx, float64(generateCount))
+}
 
 var (
 	generateCount       int
@@ -31,6 +62,7 @@ var generateCmd = &cobra.Command{
 			return err
 		}
 
+		recordGenerate(cmd.Context())
 		return printPasswords(passwords, generateFormat)
 	},
 }
