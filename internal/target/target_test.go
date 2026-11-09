@@ -158,3 +158,31 @@ func TestKeycloakEncodeFormat(t *testing.T) {
 	assert.Contains(t, encoded, `"type": "password"`)
 	assert.Contains(t, encoded, "pbkdf2-sha256")
 }
+
+func TestTargetsRejectOutOfRangeIterations(t *testing.T) {
+	cases := map[string][]string{
+		NameDjango: {
+			"pbkdf2_sha256$0$salt$aGFzaGhhc2g=",
+			"pbkdf2_sha256$-5$salt$aGFzaGhhc2g=",
+			"pbkdf2_sha256$4294967295$salt$aGFzaGhhc2g=",
+		},
+		NameKeycloak: {
+			`{"type":"password","credentialData":"{\"hashIterations\":0,\"algorithm\":\"pbkdf2-sha256\"}","secretData":"{\"value\":\"aGFzaA==\",\"salt\":\"c2FsdA==\"}"}`,
+			`{"type":"password","credentialData":"{\"hashIterations\":-1,\"algorithm\":\"pbkdf2-sha256\"}","secretData":"{\"value\":\"aGFzaA==\",\"salt\":\"c2FsdA==\"}"}`,
+			`{"type":"password","credentialData":"{\"hashIterations\":4294967295,\"algorithm\":\"pbkdf2-sha256\"}","secretData":"{\"value\":\"aGFzaA==\",\"salt\":\"c2FsdA==\"}"}`,
+		},
+		NameASPNetIdentity: {
+			// marker 0x01, PRF 2, iterations 0 / 0xFFFFFFFF, salt length 4.
+			"AQAAAAIAAAAAAAAABHNhbHRoYXNo",
+			"AQAAAAL/////AAAABHNhbHRoYXNo",
+		},
+	}
+	for name, encodings := range cases {
+		adapter, err := Get(name)
+		require.NoError(t, err)
+		for _, encoded := range encodings {
+			_, err := adapter.Decode(encoded)
+			assert.Error(t, err, "%s: %s", name, encoded)
+		}
+	}
+}

@@ -60,3 +60,19 @@ func TestPBKDF2Detect(t *testing.T) {
 	assert.False(t, algo.Detect("$pbkdf2-sha1$i=600000$c2FsdHNhbHQ$aGFzaGhhc2g"))
 	assert.False(t, algo.Detect("not a hash"))
 }
+
+func TestPBKDF2DecodeRejectsOutOfRangeIterations(t *testing.T) {
+	algo, err := Get("pbkdf2-sha256")
+	require.NoError(t, err)
+
+	for _, iterations := range []string{"0", "100000001", "99999999999999999999"} {
+		encoded := "$pbkdf2-sha256$i=" + iterations + "$c2FsdHNhbHQ$aGFzaGhhc2g"
+		_, err := algo.Decode(encoded)
+		assert.Error(t, err, "iterations %s", iterations)
+		_, err = algo.Verify([]byte("x"), encoded)
+		assert.Error(t, err, "iterations %s", iterations)
+	}
+
+	_, err = algo.Hash([]byte("x"), Params{Iterations: MaxPBKDF2Iterations + 1})
+	assert.Error(t, err)
+}

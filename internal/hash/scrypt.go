@@ -28,6 +28,9 @@ func (scryptAlgorithm) DefaultParams() Params { return scryptDefaultParams }
 
 func (s scryptAlgorithm) Hash(password []byte, params Params) (Result, error) {
 	p := fillScryptDefaults(params)
+	if err := validateScryptParams(p.N, p.R, p.P); err != nil {
+		return Result{}, err
+	}
 	salt, err := randomSalt(p.SaltLength)
 	if err != nil {
 		return Result{}, err
@@ -70,9 +73,21 @@ func (s scryptAlgorithm) Decode(encoded string) (Result, error) {
 	if m == nil {
 		return Result{}, fmt.Errorf("not a valid scrypt hash")
 	}
-	ln, _ := strconv.Atoi(m[1])
-	r, _ := strconv.Atoi(m[2])
-	p, _ := strconv.Atoi(m[3])
+	ln, err := strconv.Atoi(m[1])
+	if err != nil || ln < 1 || ln > scryptMaxLn {
+		return Result{}, fmt.Errorf("scrypt ln must be between 1 and %d, got %s", scryptMaxLn, m[1])
+	}
+	r, err := strconv.Atoi(m[2])
+	if err != nil {
+		return Result{}, fmt.Errorf("invalid scrypt r %q: %w", m[2], err)
+	}
+	p, err := strconv.Atoi(m[3])
+	if err != nil {
+		return Result{}, fmt.Errorf("invalid scrypt p %q: %w", m[3], err)
+	}
+	if err := validateScryptParams(1<<ln, r, p); err != nil {
+		return Result{}, err
+	}
 	salt, err := b64Decode(m[4])
 	if err != nil {
 		return Result{}, fmt.Errorf("decoding salt: %w", err)

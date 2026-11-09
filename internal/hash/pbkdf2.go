@@ -71,6 +71,9 @@ func (p pbkdf2Algorithm) Hash(password []byte, params Params) (Result, error) {
 	if params.KeyLength == 0 {
 		params.KeyLength = d.KeyLength
 	}
+	if err := ValidatePBKDF2Iterations(params.Iterations); err != nil {
+		return Result{}, err
+	}
 	salt, err := randomSalt(params.SaltLength)
 	if err != nil {
 		return Result{}, err
@@ -88,7 +91,13 @@ func (p pbkdf2Algorithm) Decode(encoded string) (Result, error) {
 	if m == nil || m[1] != p.hashName {
 		return Result{}, fmt.Errorf("not a valid pbkdf2-%s hash", p.hashName)
 	}
-	iterations, _ := strconv.Atoi(m[2])
+	iterations, err := strconv.Atoi(m[2])
+	if err != nil {
+		return Result{}, fmt.Errorf("invalid pbkdf2 iterations %q: %w", m[2], err)
+	}
+	if err := ValidatePBKDF2Iterations(iterations); err != nil {
+		return Result{}, err
+	}
 	salt, err := b64Decode(m[3])
 	if err != nil {
 		return Result{}, fmt.Errorf("decoding salt: %w", err)
@@ -117,6 +126,9 @@ func (p pbkdf2Algorithm) Detect(encoded string) bool {
 func PBKDF2WithSalt(hashName string, password, salt []byte, iterations, keyLen int) ([]byte, error) {
 	algo, err := Get(pbkdf2Prefix + hashName)
 	if err != nil {
+		return nil, err
+	}
+	if err := ValidatePBKDF2Iterations(iterations); err != nil {
 		return nil, err
 	}
 	p := algo.(pbkdf2Algorithm)
