@@ -73,6 +73,28 @@ func TestPhpassKnownVectors(t *testing.T) {
 	}
 }
 
+// TestPhpassRejectsOutOfRangeCount checks that count_log2 values outside
+// the reference implementation's 7..30 range are rejected instead of
+// overflowing the iteration count.
+func TestPhpassRejectsOutOfRangeCount(t *testing.T) {
+	algo, err := Get("phpass")
+	require.NoError(t, err)
+
+	for _, countChar := range []string{".", "4", "T", "z"} {
+		encoded := "$P$" + countChar + "12345678aaaaaaaaaaaaaaaaaaaaaa"
+		_, err := algo.Decode(encoded)
+		assert.Error(t, err, "count char %q", countChar)
+
+		_, err = algo.Verify([]byte("pw"), encoded)
+		assert.Error(t, err, "count char %q", countChar)
+	}
+
+	for _, countChar := range []string{"5", "S"} {
+		_, err := algo.Decode("$P$" + countChar + "12345678aaaaaaaaaaaaaaaaaaaaaa")
+		assert.NoError(t, err, "count char %q", countChar)
+	}
+}
+
 func TestPhpassIsLegacyOnly(t *testing.T) {
 	algo, err := Get("phpass")
 	require.NoError(t, err)
