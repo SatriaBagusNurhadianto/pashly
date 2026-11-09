@@ -11,7 +11,7 @@ import (
 // v1 ships bcrypt only; Okta's PBKDF2-SHA256 import variant is deferred
 // to keep the adapter surface small.
 // Reference: Okta Import Hashed Password.
-type oktaAdapter struct{}
+type oktaAdapter struct{ rawPassword }
 
 func (oktaAdapter) Name() string        { return NameOkta }
 func (oktaAdapter) AlgorithmID() string { return hash.IDBcrypt }

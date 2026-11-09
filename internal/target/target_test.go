@@ -48,11 +48,11 @@ func TestAllAdaptersRoundtrip(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			ok, err := algo.Verify([]byte(testPassword), canonical)
+			ok, err := algo.Verify(adapter.PreparePassword([]byte(testPassword)), canonical)
 			require.NoError(t, err)
 			assert.True(t, ok)
 
-			ok, err = algo.Verify([]byte("wrong password"), canonical)
+			ok, err = algo.Verify(adapter.PreparePassword([]byte("wrong password")), canonical)
 			require.NoError(t, err)
 			assert.False(t, ok)
 		})
@@ -111,6 +111,39 @@ func TestWordpressEncodeFormat(t *testing.T) {
 	encoded, err := adapter.Encode(r)
 	require.NoError(t, err)
 	assert.Regexp(t, `^\$wp\$2y\$04\$`, encoded)
+
+	// The stored bcrypt is over the pre-hashed password, not the raw one.
+	bcrypt, err := hash.Get(hash.IDBcrypt)
+	require.NoError(t, err)
+	ok, err := bcrypt.Verify(adapter.PreparePassword([]byte(testPassword)), string(r.Key))
+	require.NoError(t, err)
+	assert.True(t, ok)
+	ok, err = bcrypt.Verify([]byte(testPassword), string(r.Key))
+	require.NoError(t, err)
+	assert.False(t, ok)
+}
+
+// wordpress68Hash was produced by PHP 8.3 running WordPress 6.8's
+// wp_hash_password() code path for testPassword (cost 4):
+// '$wp' . password_hash(base64_encode(hash_hmac('sha384', trim($password), 'wp-sha384', true)), PASSWORD_BCRYPT).
+const wordpress68Hash = "$wp$2y$04$CJbTd7D7r3NEIEQhv9x0zuuZ.dw.4ZT4whKecDlb0xsd8KKVydw2K"
+
+func TestWordpress68KnownAnswer(t *testing.T) {
+	adapter, err := Get("wordpress")
+	require.NoError(t, err)
+
+	r, err := adapter.Decode(wordpress68Hash)
+	require.NoError(t, err)
+
+	bcrypt, err := hash.Get(hash.IDBcrypt)
+	require.NoError(t, err)
+	ok, err := bcrypt.Verify(adapter.PreparePassword([]byte(testPassword)), string(r.Key))
+	require.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = bcrypt.Verify(adapter.PreparePassword([]byte("wrong")), string(r.Key))
+	require.NoError(t, err)
+	assert.False(t, ok)
 }
 
 // TestAspnetIdentityKnownVector cross-validates against a real

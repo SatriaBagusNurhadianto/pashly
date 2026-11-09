@@ -21,6 +21,12 @@ type Adapter interface {
 	// parameters, used when the user supplies no tuning flags.
 	DefaultParams() hash.Params
 
+	// PreparePassword transforms the password the way this platform does
+	// before handing it to the underlying algorithm (e.g. WordPress 6.8+'s
+	// HMAC-SHA384 pre-hash). Hash applies it itself; verify must apply it
+	// before calling the underlying algorithm's Verify.
+	PreparePassword(password []byte) []byte
+
 	// Hash derives a canonical hash.Result for this platform. Most
 	// adapters delegate straight to the underlying hash.Algorithm; some
 	// (e.g. django) need target-specific salt formatting and so own their
@@ -35,6 +41,12 @@ type Adapter interface {
 	// canonical hash.Result, for verify/info to operate on.
 	Decode(string) (hash.Result, error)
 }
+
+// rawPassword is embedded by adapters whose platform hashes the password
+// as-is.
+type rawPassword struct{}
+
+func (rawPassword) PreparePassword(password []byte) []byte { return password }
 
 // --target identifiers, one per supported platform.
 const (

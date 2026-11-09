@@ -24,7 +24,7 @@ import (
 // (dotnet SDK 8.0.131). This supersedes an earlier
 // assumption of HMACSHA256; empirical verification against the actual
 // library takes precedence.
-type aspnetIdentityAdapter struct{}
+type aspnetIdentityAdapter struct{ rawPassword }
 
 func (aspnetIdentityAdapter) Name() string        { return NameASPNetIdentity }
 func (aspnetIdentityAdapter) AlgorithmID() string { return hash.IDPbkdf2Sha512 }

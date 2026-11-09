@@ -10,7 +10,7 @@ import (
 // auth0Adapter implements Auth0's bulk user import "custom_password_hash"
 // schema for bcrypt. Reference: Auth0 bulk import users – custom password
 // hash.
-type auth0Adapter struct{}
+type auth0Adapter struct{ rawPassword }
 
 func (auth0Adapter) Name() string        { return NameAuth0 }
 func (auth0Adapter) AlgorithmID() string { return hash.IDBcrypt }

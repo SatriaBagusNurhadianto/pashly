@@ -67,7 +67,7 @@ pashly hash --stdin --target keycloak > keycloak-credential.json
 # Hash for a Django user fixture (PBKDF2PasswordHasher)
 pashly hash --stdin --target django
 
-# Hash for WordPress's current bcrypt-based password format
+# Hash for WordPress 6.8+ ($wp$ bcrypt over an HMAC-SHA384 pre-hash)
 pashly hash --stdin --target wordpress
 
 # Hash for an ASP.NET Core Identity v3 user store (PBKDF2-HMAC-SHA512)

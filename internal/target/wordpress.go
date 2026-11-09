@@ -1,6 +1,10 @@
 package target
 
 import (
+	"bytes"
+	"crypto/hmac"
+	"crypto/sha512"
+	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -8,10 +12,11 @@ import (
 )
 
 // wordpressAdapter implements WordPress's current (6.8+) password format:
-// a bcrypt hash using the $2y$ prefix (PHP's PASSWORD_BCRYPT convention),
-// wrapped with a literal "$wp$" prefix to signal to older WordPress code
-// paths that this is not a legacy phpass hash. Reference: WordPress core
-// wp_hash_password()/class-wp-password-hasher.php.
+// a bcrypt hash using the $2y$ prefix (PHP's PASSWORD_BCRYPT convention) of
+// the password pre-hashed with HMAC-SHA384, wrapped with a literal "$wp"
+// prefix to signal to older WordPress code paths that this is not a plain
+// bcrypt or legacy phpass hash. Reference: WordPress core
+// wp_hash_password()/wp_check_password() in wp-includes/pluggable.php.
 //
 // Legacy phpass ($P$/$H$) hashes are supported for verify/info only, via
 // the "phpass" algorithm in internal/hash — never as a hash target.
@@ -26,6 +31,22 @@ func (wordpressAdapter) DefaultParams() hash.Params {
 	return hash.Params{Cost: wordpressDefaultCost}
 }
 
+// wordpressHMACKey is the HMAC key WordPress uses for domain separation.
+const wordpressHMACKey = "wp-sha384"
+
+// PreparePassword reproduces WordPress 6.8+'s pre-hash:
+// base64_encode(hash_hmac('sha384', $password, 'wp-sha384', true)).
+func (wordpressAdapter) PreparePassword(password []byte) []byte {
+	mac := hmac.New(sha512.New384, []byte(wordpressHMACKey))
+	mac.Write(password)
+	sum := mac.Sum(nil)
+	out := make([]byte, base64.StdEncoding.EncodedLen(len(sum)))
+	base64.StdEncoding.Encode(out, sum)
+	return out
+}
+
+// Hash trims the password before pre-hashing it, as wp_hash_password does
+// (wp_check_password does not trim, hence PreparePassword doesn't).
 func (w wordpressAdapter) Hash(password []byte, params hash.Params) (hash.Result, error) {
 	algo, err := hash.Get(w.AlgorithmID())
 	if err != nil {
@@ -34,7 +55,7 @@ func (w wordpressAdapter) Hash(password []byte, params hash.Params) (hash.Result
 	if params.Cost == 0 {
 		params.Cost = wordpressDefaultCost
 	}
-	return algo.Hash(password, params)
+	return algo.Hash(w.PreparePassword(bytes.TrimSpace(password)), params)
 }
 
 func (w wordpressAdapter) Encode(r hash.Result) (string, error) {

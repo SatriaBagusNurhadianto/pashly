@@ -11,7 +11,7 @@ import (
 // keycloakAdapter implements Keycloak's user export credential schema for
 // its default PBKDF2-SHA256 hasher (since Keycloak 8.0). Reference:
 // Keycloak Server Admin Guide – Password hashing.
-type keycloakAdapter struct{}
+type keycloakAdapter struct{ rawPassword }
 
 func (keycloakAdapter) Name() string        { return NameKeycloak }
 func (keycloakAdapter) AlgorithmID() string { return hash.IDPbkdf2Sha256 }
