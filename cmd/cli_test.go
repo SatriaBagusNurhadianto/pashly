@@ -217,3 +217,14 @@ func TestVerifyWordpress68Hash(t *testing.T) {
 	_, _, code = run(t, "verify", "--hash", encoded, "--password", "wrong")
 	assert.Equal(t, 1, code)
 }
+
+func TestVerifyMalformedArgon2ExitsWithError(t *testing.T) {
+	for _, encoded := range []string{
+		"$argon2id$v=19$m=8,t=0,p=1$c2FsdHNhbHQ$aGFzaGhhc2g",
+		"$argon2id$v=19$m=8,t=1,p=0$c2FsdHNhbHQ$aGFzaGhhc2g",
+	} {
+		_, stderr, code := run(t, "verify", "--hash", encoded, "--password", "x")
+		assert.Equal(t, 2, code, stderr)
+		assert.NotContains(t, stderr, "panic")
+	}
+}

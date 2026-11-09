@@ -71,3 +71,42 @@ func TestArgon2DetectDistinguishesVariants(t *testing.T) {
 	assert.True(t, id.Detect(encodedID))
 	assert.False(t, i.Detect(encodedID))
 }
+
+// TestArgon2DecodeRejectsUnsafeParams covers malformed or hostile
+// parameters that would otherwise panic in golang.org/x/crypto/argon2 or
+// exhaust memory.
+func TestArgon2DecodeRejectsUnsafeParams(t *testing.T) {
+	algo, err := Get("argon2id")
+	require.NoError(t, err)
+
+	cases := map[string]string{
+		"zero time":         "$argon2id$v=19$m=8,t=0,p=1$c2FsdHNhbHQ$aGFzaGhhc2g",
+		"zero parallelism":  "$argon2id$v=19$m=8,t=1,p=0$c2FsdHNhbHQ$aGFzaGhhc2g",
+		"parallelism > 255": "$argon2id$v=19$m=4096,t=1,p=256$c2FsdHNhbHQ$aGFzaGhhc2g",
+		"memory < 8*p":      "$argon2id$v=19$m=15,t=1,p=2$c2FsdHNhbHQ$aGFzaGhhc2g",
+		"memory too large":  "$argon2id$v=19$m=4294967295,t=1,p=1$c2FsdHNhbHQ$aGFzaGhhc2g",
+		"memory overflow":   "$argon2id$v=19$m=99999999999,t=1,p=1$c2FsdHNhbHQ$aGFzaGhhc2g",
+		"time overflow":     "$argon2id$v=19$m=8,t=99999999999,p=1$c2FsdHNhbHQ$aGFzaGhhc2g",
+	}
+	for name, encoded := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := algo.Decode(encoded)
+			assert.Error(t, err)
+
+			assert.NotPanics(t, func() {
+				_, err = algo.Verify([]byte("x"), encoded)
+			})
+			assert.Error(t, err)
+		})
+	}
+}
+
+func TestArgon2HashRejectsUnsafeParams(t *testing.T) {
+	algo, err := Get("argon2id")
+	require.NoError(t, err)
+
+	_, err = algo.Hash([]byte("pw"), Params{Memory: 8, Time: 1, Parallelism: 2})
+	assert.Error(t, err)
+	_, err = algo.Hash([]byte("pw"), Params{Memory: argon2MaxMemoryKiB + 1, Time: 1, Parallelism: 1})
+	assert.Error(t, err)
+}
