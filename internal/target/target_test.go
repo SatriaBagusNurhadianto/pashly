@@ -85,8 +85,36 @@ func TestOktaEncodeFormat(t *testing.T) {
 
 	encoded, err := adapter.Encode(r)
 	require.NoError(t, err)
-	assert.Contains(t, encoded, `"saltOrder": "PREFIX"`)
-	assert.Contains(t, encoded, `"workFactor"`)
+	assert.Contains(t, encoded, `"algorithm": "BCRYPT"`)
+	assert.Contains(t, encoded, `"workFactor": 10`)
+	assert.NotContains(t, encoded, "saltOrder")
+}
+
+// TestOktaDecodeRealPayload decodes an Okta credentials.password.hash
+// object built from the OpenBSD bcrypt test vector ("U*U", cost 5), as
+// Okta documents it: no saltOrder, algorithm in any case.
+func TestOktaDecodeRealPayload(t *testing.T) {
+	adapter, err := Get("okta")
+	require.NoError(t, err)
+
+	for _, algorithm := range []string{"BCRYPT", "bcrypt"} {
+		encoded := `{"algorithm":"` + algorithm + `","workFactor":5,"salt":"CCCCCCCCCCCCCCCCCCCCC.","value":"E5YPO9kmyuRGyh0XouQYb4YMJKvyOeW"}`
+		r, err := adapter.Decode(encoded)
+		require.NoError(t, err)
+		assert.Equal(t, hash.IDBcrypt, r.Algorithm)
+		assert.Equal(t, 5, r.Params.Cost)
+
+		algo, err := hash.Get(hash.IDBcrypt)
+		require.NoError(t, err)
+		ok, err := algo.Verify([]byte("U*U"), string(r.Key))
+		require.NoError(t, err)
+		assert.True(t, ok)
+	}
+
+	_, err = adapter.Decode(`{"algorithm":"SHA-256","workFactor":5,"salt":"CCCCCCCCCCCCCCCCCCCCC.","value":"E5YPO9kmyuRGyh0XouQYb4YMJKvyOeW"}`)
+	assert.Error(t, err)
+	_, err = adapter.Decode(`{"workFactor":5,"salt":"CCCCCCCCCCCCCCCCCCCCC.","value":"E5YPO9kmyuRGyh0XouQYb4YMJKvyOeW"}`)
+	assert.Error(t, err)
 }
 
 func TestDjangoEncodeFormat(t *testing.T) {
