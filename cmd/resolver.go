@@ -25,9 +25,16 @@ type resolvedHash struct {
 	// result into the underlying algorithm's canonical form, since the
 	// target's native string isn't understood by algo.Verify.
 	canonical string
+
+	// adapter is the --target format the hash was resolved through, if
+	// any; its PreparePassword is applied before verifying.
+	adapter target.Adapter
 }
 
 func (r resolvedHash) verify(password []byte) (bool, error) {
+	if r.adapter != nil {
+		password = r.adapter.PreparePassword(password)
+	}
 	return r.algo.Verify(password, r.canonical)
 }
 
@@ -78,7 +85,7 @@ func resolveViaTarget(adapter target.Adapter, encoded string) (resolvedHash, err
 	if err != nil {
 		return resolvedHash{}, err
 	}
-	return resolvedHash{label: "target:" + adapter.Name(), result: result, algo: algo, canonical: canonical}, nil
+	return resolvedHash{label: "target:" + adapter.Name(), result: result, algo: algo, canonical: canonical, adapter: adapter}, nil
 }
 
 // sniffTarget makes a best-effort guess at which --target format encoded

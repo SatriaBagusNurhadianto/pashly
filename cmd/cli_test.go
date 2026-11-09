@@ -206,3 +206,14 @@ func splitNonEmptyLines(s string) []string {
 	}
 	return out
 }
+
+func TestVerifyWordpress68Hash(t *testing.T) {
+	// Produced by WordPress 6.8's wp_hash_password() code path (PHP 8.3).
+	const encoded = "$wp$2y$04$CJbTd7D7r3NEIEQhv9x0zuuZ.dw.4ZT4whKecDlb0xsd8KKVydw2K"
+
+	_, stderr, code := run(t, "verify", "--hash", encoded, "--password", "correct horse battery staple")
+	assert.Equal(t, 0, code, stderr)
+
+	_, _, code = run(t, "verify", "--hash", encoded, "--password", "wrong")
+	assert.Equal(t, 1, code)
+}

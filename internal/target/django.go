@@ -18,7 +18,7 @@ import (
 // randomASCIIString. That constraint means this adapter cannot reuse an
 // arbitrary binary-salted hash.Result produced by the generic
 // pbkdf2-sha256 algorithm; it derives its own salt directly.
-type djangoAdapter struct{}
+type djangoAdapter struct{ rawPassword }
 
 func (djangoAdapter) Name() string        { return NameDjango }
 func (djangoAdapter) AlgorithmID() string { return hash.IDPbkdf2Sha256 }
