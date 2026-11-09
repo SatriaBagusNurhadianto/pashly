@@ -12,6 +12,14 @@ import (
 // ($H$ is the same algorithm under an alternate prefix).
 var phpassRE = regexp.MustCompile(`^\$[PH]\$([./0-9A-Za-z])([./0-9A-Za-z]{8})([./0-9A-Za-z]{22})$`)
 
+// phpassMinCountLog2 and phpassMaxCountLog2 are the bounds enforced by the
+// reference phpass implementation (crypt_private); anything outside them is
+// rejected rather than computed.
+const (
+	phpassMinCountLog2 = 7
+	phpassMaxCountLog2 = 30
+)
+
 // phpassAlgorithm implements the legacy phpass portable hash for
 // verify/info only; it is never offered as a hash target
 // (WordPress's current default is bcrypt, see internal/target/wordpress.go).
@@ -35,8 +43,9 @@ func (a phpassAlgorithm) Decode(encoded string) (Result, error) {
 		return Result{}, fmt.Errorf("not a valid phpass hash")
 	}
 	countLog2 := strings.IndexByte(itoa64, m[1][0])
-	if countLog2 < 0 {
-		return Result{}, fmt.Errorf("invalid phpass count character")
+	if countLog2 < phpassMinCountLog2 || countLog2 > phpassMaxCountLog2 {
+		return Result{}, fmt.Errorf("phpass count_log2 must be between %d and %d, got %d",
+			phpassMinCountLog2, phpassMaxCountLog2, countLog2)
 	}
 	return Result{
 		Algorithm: a.ID(),
