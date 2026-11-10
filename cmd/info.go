@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"sort"
+	"strings"
 
 	"github.com/cerberauth/pashly/internal/hash"
 	"github.com/spf13/cobra"
@@ -11,14 +14,21 @@ import (
 var (
 	infoFormat    string
 	infoAlgorithm string
+	infoHash      string
+	infoHashFile  string
+	infoStdin     bool
 )
 
 var infoCmd = &cobra.Command{
-	Use:   "info <hash>",
+	Use:   "info [hash]",
 	Short: "Detect the algorithm, encoding, and parameters of a hash",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		resolved, err := resolveHash(args[0], infoAlgorithm)
+		encoded, err := readInfoHash(args)
+		if err != nil {
+			return err
+		}
+		resolved, err := resolveHash(encoded, infoAlgorithm)
 		if err != nil {
 			return err
 		}
@@ -105,7 +115,55 @@ func paramsToMap(algorithmID string, p hash.Params) map[string]any {
 	return out
 }
 
+func readInfoHash(args []string) (string, error) {
+	set := 0
+	var positional string
+	if len(args) > 0 && args[0] != "-" {
+		positional = args[0]
+		set++
+	}
+	if infoHash != "" {
+		set++
+	}
+	if infoHashFile != "" {
+		set++
+	}
+	if infoStdin || (len(args) > 0 && args[0] == "-") {
+		set++
+	}
+	if set == 0 {
+		return "", fmt.Errorf("one of a hash argument, --hash, --hash-file, or --stdin/- is required")
+	}
+	if set > 1 {
+		return "", fmt.Errorf("hash sources are mutually exclusive")
+	}
+
+	switch {
+	case infoStdin || (len(args) > 0 && args[0] == "-"):
+		reader := bufio.NewReader(os.Stdin)
+		b, err := reader.ReadString('\n')
+		if err != nil && b == "" {
+			return "", fmt.Errorf("reading hash from stdin: %w", err)
+		}
+		// read any remaining
+		return strings.TrimSpace(b), nil
+	case infoHashFile != "":
+		data, err := os.ReadFile(infoHashFile)
+		if err != nil {
+			return "", fmt.Errorf("reading hash file: %w", err)
+		}
+		return strings.TrimSpace(string(data)), nil
+	case infoHash != "":
+		return strings.TrimSpace(infoHash), nil
+	default:
+		return strings.TrimSpace(positional), nil
+	}
+}
+
 func init() {
 	infoCmd.Flags().StringVar(&infoFormat, "format", "plain", "output format: plain | json")
 	infoCmd.Flags().StringVar(&infoAlgorithm, "algorithm", "", "override algorithm/target auto-detection")
+	infoCmd.Flags().StringVar(&infoHash, "hash", "", "hash to inspect")
+	infoCmd.Flags().StringVar(&infoHashFile, "hash-file", "", "read hash to inspect from file")
+	infoCmd.Flags().BoolVar(&infoStdin, "stdin", false, "read hash from stdin")
 }
